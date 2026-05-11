@@ -92,6 +92,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .supplier-meta{font-size:12px;color:var(--text2);margin-top:3px}
 .loading{display:flex;align-items:center;justify-content:center;padding:40px;color:var(--text2);font-size:14px}
 .no-config{text-align:center;padding:60px 20px;color:var(--text2)}
+.params-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
+.param-card{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px 16px;position:relative;transition:border-color 0.15s}
+.param-card:hover{border-color:var(--blue)}
+.param-card-label{font-size:11px;font-weight:600;color:var(--text2);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.04em;line-height:1.4}
+.param-card-value{font-size:14px;font-weight:500;color:var(--text);line-height:1.5}
+.param-edit-btn{position:absolute;top:8px;right:8px;padding:2px 8px;font-size:11px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text2);cursor:pointer;opacity:0;transition:opacity 0.15s}
+.param-card:hover .param-edit-btn{opacity:1}
 .no-config h3{font-size:16px;font-weight:500;margin-bottom:8px;color:var(--text)}
 </style>
 </head>
@@ -390,25 +397,36 @@ function renderTabContent(id, params, features, procurement) {
   if (currentTab === 'params') {
     el.innerHTML = `
       <div class="section">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-          <div class="section-title" style="margin:0">核心参数</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <div style="display:flex;gap:8px;align-items:center">
+            <div class="section-title" style="margin:0">核心参数</div>
+            <div style="display:flex;gap:0;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">
+              <button id="tab-actual" onclick="setParamView('actual')" style="padding:4px 12px;font-size:12px;border:none;background:#378ADD;color:#fff;cursor:pointer">实际参数</button>
+              <button id="tab-nameplate" onclick="setParamView('nameplate')" style="padding:4px 12px;font-size:12px;border:none;background:var(--bg);color:var(--text2);cursor:pointer">铭牌数据</button>
+              <button id="tab-both" onclick="setParamView('both')" style="padding:4px 12px;font-size:12px;border:none;background:var(--bg);color:var(--text2);cursor:pointer">对比</button>
+            </div>
+          </div>
           ${isAdmin ? `<button class="btn btn-sm btn-primary" onclick="openAddParam()">+ 添加参数</button>` : ''}
         </div>
-        <table class="param-table">
-          <thead><tr><th>参数名称</th><th>具体参数</th><th>铭牌数据</th>${isAdmin?'<th style="width:80px">操作</th>':''}</tr></thead>
-          <tbody>
-            ${params.length ? params.map(p => `
-              <tr>
-                <td>${p.param_key}</td>
-                <td>${p.param_value||'-'}</td>
-                <td>${p.nameplate_value||'-'}</td>
-                ${isAdmin ? `<td><button class="btn btn-sm" onclick="openEditParam('${p.id}','${escHtml(p.param_key)}','${escHtml(p.param_value||'')}','${escHtml(p.nameplate_value||'')}')">编辑</button></td>` : ''}
-              </tr>
-            `).join('') : `<tr><td colspan="${isAdmin?4:3}" style="text-align:center;color:var(--text2);padding:20px">暂无参数</td></tr>`}
-          </tbody>
-        </table>
+        <div id="params-grid" class="params-grid">
+          ${params.length ? params.map(p => `
+            <div class="param-card" data-actual="${escHtml(p.param_value||'-')}" data-nameplate="${escHtml(p.nameplate_value||'-')}">
+              <div class="param-card-label">${p.param_key}</div>
+              <div class="param-card-actual param-card-value">${p.param_value||'-'}</div>
+              <div class="param-card-nameplate param-card-value" style="display:none">${p.nameplate_value||'-'}</div>
+              <div class="param-card-both" style="display:none">
+                <div style="font-size:11px;color:var(--text2);margin-bottom:2px">实际</div>
+                <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:6px">${p.param_value||'-'}</div>
+                <div style="font-size:11px;color:var(--text2);margin-bottom:2px">铭牌</div>
+                <div style="font-size:13px;font-weight:500;color:#378ADD">${p.nameplate_value||'-'}</div>
+              </div>
+              ${isAdmin ? `<button class="param-edit-btn" onclick="openEditParam('${p.id}','${escHtml(p.param_key)}','${escHtml(p.param_value||'')}','${escHtml(p.nameplate_value||'')}')">编辑</button>` : ''}
+            </div>
+          `).join('') : '<div style="text-align:center;color:var(--text2);padding:40px;grid-column:1/-1">暂无参数</div>'}
+        </div>
       </div>
     `;
+    window._currentParamView = 'actual';
   } else if (currentTab === 'features') {
     el.innerHTML = `
       <div class="section">
@@ -653,6 +671,24 @@ function closeModal(id) {
 document.querySelectorAll('.modal-overlay').forEach(m => {
   m.addEventListener('click', e => { if (e.target === m) m.classList.remove('open'); });
 });
+
+function setParamView(view) {
+  window._currentParamView = view;
+  const btns = {
+    actual: document.getElementById('tab-actual'),
+    nameplate: document.getElementById('tab-nameplate'),
+    both: document.getElementById('tab-both')
+  };
+  Object.keys(btns).forEach(k => {
+    if (btns[k]) {
+      btns[k].style.background = k === view ? '#378ADD' : 'var(--bg)';
+      btns[k].style.color = k === view ? '#fff' : 'var(--text2)';
+    }
+  });
+  document.querySelectorAll('.param-card-actual').forEach(el => el.style.display = view === 'actual' ? 'block' : 'none');
+  document.querySelectorAll('.param-card-nameplate').forEach(el => el.style.display = view === 'nameplate' ? 'block' : 'none');
+  document.querySelectorAll('.param-card-both').forEach(el => el.style.display = view === 'both' ? 'block' : 'none');
+}
 
 async function start() {
   config = {
