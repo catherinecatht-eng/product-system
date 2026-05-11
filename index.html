@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>产品信息管理系统</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#fff;--bg2:#f8f8f6;--bg3:#f0efe9;--border:#e0dfd6;--text:#1a1a1a;--text2:#666;--blue:#378ADD;--blue-bg:#e6f1fb;--blue-text:#0c447c;--green:#1D9E75;--green-bg:#e1f5ee;--red:#E24B4A;--radius:8px;--radius-lg:12px}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg2);color:var(--text);min-height:100vh}
+.layout{display:grid;grid-template-columns:260px 1fr;min-height:100vh}
+.sidebar{background:var(--bg);border-right:1px solid var(--border);padding:0;display:flex;flex-direction:column}
+.sidebar-header{padding:20px;border-bottom:1px solid var(--border)}
+.sidebar-header h2{font-size:16px;font-weight:600;color:var(--text)}
+.sidebar-header p{font-size:12px;color:var(--text2);margin-top:3px}
+.sidebar-search{padding:12px 16px;border-bottom:1px solid var(--border)}
+.sidebar-search input{width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--bg2);color:var(--text)}
+.sidebar-search input:focus{outline:none;border-color:var(--blue)}
+.product-list{flex:1;overflow-y:auto;padding:8px 0}
+.product-item{padding:10px 16px;cursor:pointer;border-left:3px solid transparent;transition:all 0.15s}
+.product-item:hover{background:var(--bg2)}
+.product-item.active{background:var(--blue-bg);border-left-color:var(--blue)}
+.product-item .sku{font-size:11px;font-weight:600;color:var(--blue-text);background:var(--blue-bg);padding:2px 7px;border-radius:20px;display:inline-block;margin-bottom:4px}
+.product-item.active .sku{background:#c8dff5}
+.product-item .pname{font-size:13px;font-weight:500;color:var(--text)}
+.product-item .pmeta{font-size:11px;color:var(--text2);margin-top:2px}
+.sidebar-footer{padding:12px 16px;border-top:1px solid var(--border)}
+.main{display:flex;flex-direction:column;overflow:hidden}
+.topbar{background:var(--bg);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;justify-content:space-between}
+.topbar-left{display:flex;align-items:center;gap:12px}
+.topbar h1{font-size:16px;font-weight:600;color:var(--text)}
+.role-badge{font-size:11px;padding:3px 10px;border-radius:20px;background:var(--green-bg);color:#085041;font-weight:500}
+.topbar-right{display:flex;gap:8px}
+.content{flex:1;overflow-y:auto;padding:24px}
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:60vh;color:var(--text2);text-align:center}
+.empty-state svg{margin-bottom:16px;opacity:0.3}
+.empty-state p{font-size:14px}
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:24px}
+.tab{padding:10px 20px;font-size:13px;cursor:pointer;border-bottom:2px solid transparent;color:var(--text2);transition:all 0.15s}
+.tab.active{color:var(--blue);border-bottom-color:var(--blue);font-weight:500}
+.tab:hover{color:var(--text)}
+.section{margin-bottom:24px}
+.section-title{font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:12px}
+.param-table{width:100%;border-collapse:collapse;font-size:13px;background:var(--bg);border-radius:var(--radius-lg);overflow:hidden;border:1px solid var(--border)}
+.param-table th{background:var(--bg3);padding:9px 14px;text-align:left;font-weight:500;font-size:12px;color:var(--text2);border-bottom:1px solid var(--border)}
+.param-table td{padding:9px 14px;border-bottom:1px solid var(--border);color:var(--text)}
+.param-table tr:last-child td{border-bottom:none}
+.param-table td:first-child{color:var(--text2);width:40%}
+.feature-grid{display:flex;flex-direction:column;gap:8px}
+.feature-card{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px}
+.feature-card .fname{font-size:12px;font-weight:600;color:var(--blue-text);margin-bottom:4px}
+.feature-card .fdesc{font-size:13px;color:var(--text);line-height:1.6}
+.procurement-card{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px}
+.procurement-row{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.pfield label{font-size:11px;color:var(--text2);font-weight:500;display:block;margin-bottom:4px}
+.pfield span{font-size:14px;color:var(--text);font-weight:500}
+.btn{padding:7px 14px;border-radius:var(--radius);border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;cursor:pointer;transition:all 0.15s;white-space:nowrap}
+.btn:hover{background:var(--bg3)}
+.btn-primary{background:var(--blue);color:#fff;border-color:#185FA5}
+.btn-primary:hover{background:#185FA5}
+.btn-sm{padding:4px 10px;font-size:12px}
+.btn-danger{color:var(--red);border-color:#f09595}
+.btn-danger:hover{background:#fcebeb}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:200;align-items:center;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal{background:var(--bg);border-radius:var(--radius-lg);padding:24px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.12)}
+.modal h3{font-size:16px;font-weight:600;margin-bottom:16px;color:var(--text)}
+.form-group{margin-bottom:14px}
+.form-group label{display:block;font-size:12px;font-weight:500;color:var(--text2);margin-bottom:5px}
+.form-group input,.form-group textarea,.form-group select{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;color:var(--text);background:var(--bg);font-family:inherit}
+.form-group input:focus,.form-group textarea:focus,.form-group select:focus{outline:none;border-color:var(--blue)}
+.form-group textarea{min-height:70px;resize:vertical}
+.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px;padding-top:16px;border-top:1px solid var(--border)}
+.login-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;background:var(--bg2)}
+.login-card{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:32px;width:360px;text-align:center}
+.login-card h2{font-size:20px;font-weight:600;margin-bottom:8px}
+.login-card p{font-size:13px;color:var(--text2);margin-bottom:24px}
+.login-card input{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:14px;margin-bottom:12px;color:var(--text);background:var(--bg)}
+.login-card input:focus{outline:none;border-color:var(--blue)}
+.error-msg{font-size:12px;color:var(--red);margin-top:8px}
+.setup-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;background:var(--bg2)}
+.setup-card{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:32px;width:480px}
+.setup-card h2{font-size:18px;font-weight:600;margin-bottom:8px}
+.setup-card p{font-size:13px;color:var(--text2);margin-bottom:20px;line-height:1.6}
+.setup-card .hint{font-size:12px;color:var(--text2);margin-top:4px}
+.tag{font-size:11px;padding:2px 8px;border-radius:20px;display:inline-block}
+.tag-supplier{background:var(--green-bg);color:#085041}
+.supplier-list{display:flex;flex-direction:column;gap:8px}
+.supplier-card{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;display:flex;justify-content:space-between;align-items:flex-start}
+.supplier-name{font-size:14px;font-weight:500;color:var(--text)}
+.supplier-meta{font-size:12px;color:var(--text2);margin-top:3px}
+.loading{display:flex;align-items:center;justify-content:center;padding:40px;color:var(--text2);font-size:14px}
+.no-config{text-align:center;padding:60px 20px;color:var(--text2)}
+.no-config h3{font-size:16px;font-weight:500;margin-bottom:8px;color:var(--text)}
+</style>
+</head>
+<body>
+
+<div id="setup-screen" class="setup-screen" style="display:none">
+  <div class="setup-card">
+    <h2>⚙️ 初始化设置</h2>
+    <p>首次使用需要连接数据库。请在 <a href="https://supabase.com" target="_blank">supabase.com</a> 创建项目后，填入以下信息：</p>
+    <div class="form-group">
+      <label>Supabase URL</label>
+      <input type="text" id="setup-url" placeholder="https://xxxx.supabase.co">
+    </div>
+    <div class="form-group">
+      <label>Supabase Anon Key</label>
+      <input type="text" id="setup-key" placeholder="eyJ...">
+      <div class="hint">在 Supabase 项目 → Settings → API 里找到</div>
+    </div>
+    <div class="form-group">
+      <label>管理员密码（自己设定）</label>
+      <input type="password" id="setup-pwd" placeholder="设置一个管理员密码">
+    </div>
+    <button class="btn btn-primary" style="width:100%;margin-top:8px" onclick="saveSetup()">保存并开始使用</button>
+    <p id="setup-err" class="error-msg" style="display:none"></p>
+  </div>
+</div>
+
+<div id="login-screen" class="login-screen" style="display:none">
+  <div class="login-card">
+    <h2>🔐 管理员登录</h2>
+    <p>输入密码进入管理模式，可添加、编辑、删除产品</p>
+    <input type="password" id="login-pwd" placeholder="管理员密码" onkeydown="if(event.key==='Enter')doLogin()">
+    <button class="btn btn-primary" style="width:100%" onclick="doLogin()">登录</button>
+    <p id="login-err" class="error-msg" style="display:none">密码错误</p>
+    <br>
+    <button class="btn" style="width:100%;margin-top:8px" onclick="enterViewMode()">以查看模式进入</button>
+  </div>
+</div>
+
+<div id="app" style="display:none">
+<div class="layout">
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <h2>产品信息库</h2>
+      <p id="product-count">加载中...</p>
+    </div>
+    <div class="sidebar-search">
+      <input type="text" id="search-input" placeholder="搜索 SKU 或产品名..." oninput="doSearch()">
+    </div>
+    <div class="product-list" id="product-list"></div>
+    <div class="sidebar-footer">
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <span id="mode-badge" class="tag tag-supplier">查看模式</span>
+        <button class="btn btn-sm" id="admin-btn" onclick="toggleAdmin()">管理员登录</button>
+        <button class="btn btn-sm btn-primary" id="add-btn" onclick="openAddProduct()" style="display:none">+ 添加产品</button>
+      </div>
+    </div>
+  </div>
+  <div class="main">
+    <div class="topbar">
+      <div class="topbar-left">
+        <div>
+          <h1 id="topbar-title">选择产品查看详情</h1>
+          <p style="font-size:12px;color:var(--text2)" id="topbar-sub"></p>
+        </div>
+      </div>
+      <div class="topbar-right" id="topbar-actions"></div>
+    </div>
+    <div class="content" id="content">
+      <div class="empty-state">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z"/><path d="M16 3H8a2 2 0 00-2 2v2h12V5a2 2 0 00-2-2z"/></svg>
+        <p>从左侧选择产品查看详细信息</p>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<div id="product-modal" class="modal-overlay">
+  <div class="modal">
+    <h3 id="product-modal-title">添加产品</h3>
+    <div class="form-group"><label>SKU编号</label><input type="text" id="pm-sku"></div>
+    <div class="form-group"><label>产品名称</label><input type="text" id="pm-name"></div>
+    <div class="form-group"><label>产品类别</label><input type="text" id="pm-category" value="除湿机"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('product-modal')">取消</button>
+      <button class="btn btn-primary" onclick="saveProduct()">保存</button>
+    </div>
+  </div>
+</div>
+
+<div id="param-modal" class="modal-overlay">
+  <div class="modal">
+    <h3 id="param-modal-title">添加参数</h3>
+    <div class="form-group"><label>参数名称</label><input type="text" id="param-key" placeholder="例：额定功率"></div>
+    <div class="form-group"><label>具体参数值</label><input type="text" id="param-value" placeholder="例：222W"></div>
+    <div class="form-group"><label>铭牌数据（选填）</label><input type="text" id="param-nameplate" placeholder="例：222W"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('param-modal')">取消</button>
+      <button class="btn btn-primary" onclick="saveParam()">保存</button>
+    </div>
+  </div>
+</div>
+
+<div id="feature-modal" class="modal-overlay">
+  <div class="modal">
+    <h3>添加功能特性</h3>
+    <div class="form-group"><label>功能名称（选填）</label><input type="text" id="feat-name" placeholder="例：工作模式"></div>
+    <div class="form-group"><label>功能描述</label><textarea id="feat-desc" placeholder="例：除湿/干衣/睡眠三种模式"></textarea></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('feature-modal')">取消</button>
+      <button class="btn btn-primary" onclick="saveFeature()">保存</button>
+    </div>
+  </div>
+</div>
+
+<div id="supplier-modal" class="modal-overlay">
+  <div class="modal">
+    <h3>添加供应商</h3>
+    <div class="form-group"><label>供应商名称</label><input type="text" id="sup-name"></div>
+    <div class="form-group"><label>联系人</label><input type="text" id="sup-contact"></div>
+    <div class="form-group"><label>邮箱</label><input type="text" id="sup-email"></div>
+    <div class="form-group"><label>电话</label><input type="text" id="sup-phone"></div>
+    <div class="form-group"><label>备注</label><textarea id="sup-notes"></textarea></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('supplier-modal')">取消</button>
+      <button class="btn btn-primary" onclick="saveSupplier()">保存</button>
+    </div>
+  </div>
+</div>
+
+<div id="procurement-modal" class="modal-overlay">
+  <div class="modal">
+    <h3>编辑采购信息</h3>
+    <div class="form-group"><label>供应商</label>
+      <select id="proc-supplier"><option value="">-- 选择供应商 --</option></select>
+    </div>
+    <div class="form-group"><label>采购成本（USD）</label><input type="number" id="proc-cost" step="0.01"></div>
+    <div class="form-group"><label>最小起订量（MOQ）</label><input type="number" id="proc-moq"></div>
+    <div class="form-group"><label>交货周期</label><input type="text" id="proc-lead" placeholder="例：30天"></div>
+    <div class="form-group"><label>备注</label><textarea id="proc-notes"></textarea></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('procurement-modal')">取消</button>
+      <button class="btn btn-primary" onclick="saveProcurement()">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = 'product_system_config';
+let supabase = null;
+let isAdmin = false;
+let currentProductId = null;
+let currentTab = 'params';
+let editingParamId = null;
+let config = null;
+
+function getConfig() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch(e) { return null; }
+}
+
+function saveConfig(c) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(c));
+}
+
+function initSupabase(url, key) {
+  supabase = window.supabase.createClient(url, key);
+}
+
+async function saveSetup() {
+  const url = document.getElementById('setup-url').value.trim();
+  const key = document.getElementById('setup-key').value.trim();
+  const pwd = document.getElementById('setup-pwd').value.trim();
+  if (!url || !key || !pwd) {
+    document.getElementById('setup-err').textContent = '请填写所有字段';
+    document.getElementById('setup-err').style.display = 'block';
+    return;
+  }
+  try {
+    initSupabase(url, key);
+    const { error } = await supabase.from('products').select('id').limit(1);
+    if (error) throw error;
+    saveConfig({ url, key, pwd });
+    location.reload();
+  } catch(e) {
+    document.getElementById('setup-err').textContent = '连接失败，请检查URL和Key：' + e.message;
+    document.getElementById('setup-err').style.display = 'block';
+  }
+}
+
+function doLogin() {
+  const pwd = document.getElementById('login-pwd').value;
+  if (pwd === config.pwd) {
+    isAdmin = true;
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    document.getElementById('mode-badge').textContent = '管理员';
+    document.getElementById('mode-badge').style.background = '#e1f5ee';
+    document.getElementById('admin-btn').textContent = '退出管理';
+    document.getElementById('add-btn').style.display = 'inline-block';
+    loadProducts();
+  } else {
+    document.getElementById('login-err').style.display = 'block';
+  }
+}
+
+function enterViewMode() {
+  isAdmin = false;
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  loadProducts();
+}
+
+function toggleAdmin() {
+  if (isAdmin) {
+    isAdmin = false;
+    document.getElementById('mode-badge').textContent = '查看模式';
+    document.getElementById('admin-btn').textContent = '管理员登录';
+    document.getElementById('add-btn').style.display = 'none';
+    if (currentProductId) showProduct(currentProductId);
+  } else {
+    document.getElementById('app').style.display = 'none';
+    document.getElementById('login-screen').style.display = 'flex';
+  }
+}
+
+let allProducts = [];
+
+async function loadProducts() {
+  const { data, error } = await supabase.from('products').select('*').order('sku');
+  if (error) { console.error(error); return; }
+  allProducts = data || [];
+  renderProductList(allProducts);
+  document.getElementById('product-count').textContent = `共 ${allProducts.length} 个产品`;
+}
+
+function renderProductList(list) {
+  const el = document.getElementById('product-list');
+  if (!list.length) {
+    el.innerHTML = '<div class="loading">暂无产品</div>';
+    return;
+  }
+  el.innerHTML = list.map(p => `
+    <div class="product-item ${currentProductId===p.id?'active':''}" onclick="showProduct('${p.id}')">
+      <span class="sku">${p.sku}</span>
+      <div class="pname">${p.name}</div>
+      <div class="pmeta">${p.category}</div>
+    </div>
+  `).join('');
+}
+
+function doSearch() {
+  const q = document.getElementById('search-input').value.toLowerCase();
+  if (!q) { renderProductList(allProducts); return; }
+  renderProductList(allProducts.filter(p =>
+    p.sku.toLowerCase().includes(q) || p.name.toLowerCase().includes(q)
+  ));
+}
+
+async function showProduct(id) {
+  currentProductId = id;
+  const product = allProducts.find(p => p.id === id);
+  if (!product) return;
+  renderProductList(allProducts.filter(p => {
+    const q = document.getElementById('search-input').value.toLowerCase();
+    return !q || p.sku.toLowerCase().includes(q) || p.name.toLowerCase().includes(q);
+  }));
+  document.getElementById('topbar-title').textContent = `${product.sku} — ${product.name}`;
+  document.getElementById('topbar-sub').textContent = product.category;
+  const actions = document.getElementById('topbar-actions');
+  actions.innerHTML = isAdmin ? `
+    <button class="btn btn-sm btn-danger" onclick="deleteProduct('${id}')">删除产品</button>
+    <button class="btn btn-sm" onclick="openEditProduct('${id}')">编辑基本信息</button>
+  ` : '';
+  await renderTabs(id);
+}
+
+async function renderTabs(id) {
+  const [params, features, procurement] = await Promise.all([
+    supabase.from('product_params').select('*').eq('product_id', id).order('sort_order'),
+    supabase.from('product_features').select('*').eq('product_id', id).order('sort_order'),
+    supabase.from('product_procurement').select('*, suppliers(name)').eq('product_id', id).single()
+  ]);
+  const content = document.getElementById('content');
+  const tabs = ['params','features','procurement'];
+  const tabLabels = ['核心参数','功能特性','采购信息'];
+  content.innerHTML = `
+    <div class="tabs">
+      ${tabs.map((t,i) => `<div class="tab ${currentTab===t?'active':''}" onclick="switchTab('${t}','${id}')">${tabLabels[i]}</div>`).join('')}
+    </div>
+    <div id="tab-content"></div>
+  `;
+  renderTabContent(id, params.data||[], features.data||[], procurement.data);
+}
+
+function switchTab(tab, id) {
+  currentTab = tab;
+  document.querySelectorAll('.tab').forEach((t,i) => {
+    t.classList.toggle('active', ['params','features','procurement'][i] === tab);
+  });
+  const pData = window._params || [];
+  const fData = window._features || [];
+  const prData = window._procurement;
+  renderTabContent(id, pData, fData, prData);
+}
+
+function renderTabContent(id, params, features, procurement) {
+  window._params = params;
+  window._features = features;
+  window._procurement = procurement;
+  const el = document.getElementById('tab-content');
+  if (currentTab === 'params') {
+    el.innerHTML = `
+      <div class="section">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <div class="section-title" style="margin:0">核心参数</div>
+          ${isAdmin ? `<button class="btn btn-sm btn-primary" onclick="openAddParam()">+ 添加参数</button>` : ''}
+        </div>
+        <table class="param-table">
+          <thead><tr><th>参数名称</th><th>具体参数</th><th>铭牌数据</th>${isAdmin?'<th style="width:80px">操作</th>':''}</tr></thead>
+          <tbody>
+            ${params.length ? params.map(p => `
+              <tr>
+                <td>${p.param_key}</td>
+                <td>${p.param_value||'-'}</td>
+                <td>${p.nameplate_value||'-'}</td>
+                ${isAdmin ? `<td><button class="btn btn-sm" onclick="openEditParam('${p.id}','${escHtml(p.param_key)}','${escHtml(p.param_value||'')}','${escHtml(p.nameplate_value||'')}')">编辑</button></td>` : ''}
+              </tr>
+            `).join('') : `<tr><td colspan="${isAdmin?4:3}" style="text-align:center;color:var(--text2);padding:20px">暂无参数</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    `;
+  } else if (currentTab === 'features') {
+    el.innerHTML = `
+      <div class="section">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <div class="section-title" style="margin:0">功能特性</div>
+          ${isAdmin ? `<button class="btn btn-sm btn-primary" onclick="openAddFeature()">+ 添加功能</button>` : ''}
+        </div>
+        <div class="feature-grid">
+          ${features.length ? features.map(f => `
+            <div class="feature-card">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start">
+                <div>
+                  ${f.feature_name ? `<div class="fname">${f.feature_name}</div>` : ''}
+                  <div class="fdesc">${f.feature_desc}</div>
+                </div>
+                ${isAdmin ? `<button class="btn btn-sm btn-danger" onclick="deleteFeature('${f.id}')" style="margin-left:8px;flex-shrink:0">删除</button>` : ''}
+              </div>
+            </div>
+          `).join('') : '<div style="text-align:center;color:var(--text2);padding:20px;font-size:13px">暂无功能描述</div>'}
+        </div>
+      </div>
+    `;
+  } else if (currentTab === 'procurement') {
+    const pr = procurement;
+    el.innerHTML = `
+      <div class="section">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <div class="section-title" style="margin:0">采购信息</div>
+          ${isAdmin ? `<button class="btn btn-sm btn-primary" onclick="openProcurement('${id}')">编辑采购信息</button>` : ''}
+        </div>
+        ${pr ? `
+          <div class="procurement-card">
+            <div class="procurement-row">
+              <div class="pfield"><label>供应商</label><span>${pr.suppliers?.name||'-'}</span></div>
+              <div class="pfield"><label>采购成本</label><span>${pr.cost_price ? '$'+pr.cost_price : '-'}</span></div>
+              <div class="pfield"><label>最小起订量</label><span>${pr.moq ? pr.moq+'件' : '-'}</span></div>
+              <div class="pfield"><label>交货周期</label><span>${pr.lead_time||'-'}</span></div>
+              ${pr.notes ? `<div class="pfield" style="grid-column:1/-1"><label>备注</label><span>${pr.notes}</span></div>` : ''}
+            </div>
+          </div>
+        ` : `<div style="text-align:center;color:var(--text2);padding:20px;font-size:13px">${isAdmin?'点击"编辑采购信息"添加':'暂无采购信息'}</div>`}
+      </div>
+      ${isAdmin ? `
+      <div class="section">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <div class="section-title" style="margin:0">供应商管理</div>
+          <button class="btn btn-sm btn-primary" onclick="openAddSupplier()">+ 添加供应商</button>
+        </div>
+        <div id="supplier-list-area"><div class="loading">加载中...</div></div>
+      </div>` : ''}
+    `;
+    if (isAdmin) loadSuppliers();
+  }
+}
+
+async function loadSuppliers() {
+  const { data } = await supabase.from('suppliers').select('*').order('name');
+  const el = document.getElementById('supplier-list-area');
+  if (!el) return;
+  if (!data || !data.length) { el.innerHTML = '<div style="text-align:center;color:var(--text2);padding:16px;font-size:13px">暂无供应商</div>'; return; }
+  el.innerHTML = `<div class="supplier-list">${data.map(s => `
+    <div class="supplier-card">
+      <div>
+        <div class="supplier-name">${s.name}</div>
+        <div class="supplier-meta">${[s.contact,s.email,s.phone].filter(Boolean).join(' · ')}</div>
+        ${s.notes ? `<div class="supplier-meta" style="margin-top:3px">${s.notes}</div>` : ''}
+      </div>
+      <button class="btn btn-sm btn-danger" onclick="deleteSupplier('${s.id}')">删除</button>
+    </div>
+  `).join('')}</div>`;
+}
+
+function escHtml(s) { return String(s).replace(/'/g,"&#39;").replace(/"/g,"&quot;"); }
+
+function openAddProduct() {
+  document.getElementById('product-modal-title').textContent = '添加产品';
+  document.getElementById('pm-sku').value = '';
+  document.getElementById('pm-name').value = '';
+  document.getElementById('pm-category').value = '除湿机';
+  document.getElementById('product-modal').classList.add('open');
+  window._editProductId = null;
+}
+
+function openEditProduct(id) {
+  const p = allProducts.find(x=>x.id===id);
+  if (!p) return;
+  document.getElementById('product-modal-title').textContent = '编辑产品';
+  document.getElementById('pm-sku').value = p.sku;
+  document.getElementById('pm-name').value = p.name;
+  document.getElementById('pm-category').value = p.category;
+  document.getElementById('product-modal').classList.add('open');
+  window._editProductId = id;
+}
+
+async function saveProduct() {
+  const sku = document.getElementById('pm-sku').value.trim();
+  const name = document.getElementById('pm-name').value.trim();
+  const category = document.getElementById('pm-category').value.trim();
+  if (!sku || !name) { alert('SKU和名称不能为空'); return; }
+  if (window._editProductId) {
+    await supabase.from('products').update({sku,name,category,updated_at:new Date()}).eq('id',window._editProductId);
+  } else {
+    await supabase.from('products').insert({sku,name,category});
+  }
+  closeModal('product-modal');
+  await loadProducts();
+  if (window._editProductId) showProduct(window._editProductId);
+}
+
+async function deleteProduct(id) {
+  if (!confirm('确定删除此产品？所有参数和功能数据将一并删除。')) return;
+  await supabase.from('products').delete().eq('id', id);
+  currentProductId = null;
+  document.getElementById('topbar-title').textContent = '选择产品查看详情';
+  document.getElementById('topbar-sub').textContent = '';
+  document.getElementById('topbar-actions').innerHTML = '';
+  document.getElementById('content').innerHTML = '<div class="empty-state"><p>从左侧选择产品查看详细信息</p></div>';
+  await loadProducts();
+}
+
+function openAddParam() {
+  editingParamId = null;
+  document.getElementById('param-modal-title').textContent = '添加参数';
+  document.getElementById('param-key').value = '';
+  document.getElementById('param-value').value = '';
+  document.getElementById('param-nameplate').value = '';
+  document.getElementById('param-modal').classList.add('open');
+}
+
+function openEditParam(id, key, val, nameplate) {
+  editingParamId = id;
+  document.getElementById('param-modal-title').textContent = '编辑参数';
+  document.getElementById('param-key').value = key;
+  document.getElementById('param-value').value = val;
+  document.getElementById('param-nameplate').value = nameplate;
+  document.getElementById('param-modal').classList.add('open');
+}
+
+async function saveParam() {
+  const key = document.getElementById('param-key').value.trim();
+  const val = document.getElementById('param-value').value.trim();
+  const nameplate = document.getElementById('param-nameplate').value.trim();
+  if (!key) { alert('参数名称不能为空'); return; }
+  if (editingParamId) {
+    await supabase.from('product_params').update({param_key:key,param_value:val,nameplate_value:nameplate}).eq('id',editingParamId);
+  } else {
+    const maxOrder = (window._params||[]).reduce((m,p)=>Math.max(m,p.sort_order||0),0);
+    await supabase.from('product_params').insert({product_id:currentProductId,param_key:key,param_value:val,nameplate_value:nameplate,sort_order:maxOrder+1});
+  }
+  closeModal('param-modal');
+  await renderTabs(currentProductId);
+}
+
+function openAddFeature() {
+  document.getElementById('feat-name').value = '';
+  document.getElementById('feat-desc').value = '';
+  document.getElementById('feature-modal').classList.add('open');
+}
+
+async function saveFeature() {
+  const name = document.getElementById('feat-name').value.trim();
+  const desc = document.getElementById('feat-desc').value.trim();
+  if (!desc) { alert('功能描述不能为空'); return; }
+  const maxOrder = (window._features||[]).reduce((m,f)=>Math.max(m,f.sort_order||0),0);
+  await supabase.from('product_features').insert({product_id:currentProductId,feature_name:name,feature_desc:desc,sort_order:maxOrder+1});
+  closeModal('feature-modal');
+  await renderTabs(currentProductId);
+}
+
+async function deleteFeature(id) {
+  if (!confirm('确定删除此功能描述？')) return;
+  await supabase.from('product_features').delete().eq('id',id);
+  await renderTabs(currentProductId);
+}
+
+function openAddSupplier() {
+  ['sup-name','sup-contact','sup-email','sup-phone','sup-notes'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('supplier-modal').classList.add('open');
+}
+
+async function saveSupplier() {
+  const name = document.getElementById('sup-name').value.trim();
+  if (!name) { alert('供应商名称不能为空'); return; }
+  await supabase.from('suppliers').insert({
+    name, contact:document.getElementById('sup-contact').value.trim(),
+    email:document.getElementById('sup-email').value.trim(),
+    phone:document.getElementById('sup-phone').value.trim(),
+    notes:document.getElementById('sup-notes').value.trim()
+  });
+  closeModal('supplier-modal');
+  loadSuppliers();
+}
+
+async function deleteSupplier(id) {
+  if (!confirm('确定删除此供应商？')) return;
+  await supabase.from('suppliers').delete().eq('id',id);
+  loadSuppliers();
+}
+
+async function openProcurement(productId) {
+  const { data: suppliers } = await supabase.from('suppliers').select('*').order('name');
+  const sel = document.getElementById('proc-supplier');
+  sel.innerHTML = '<option value="">-- 选择供应商 --</option>' +
+    (suppliers||[]).map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
+  const pr = window._procurement;
+  if (pr) {
+    sel.value = pr.supplier_id || '';
+    document.getElementById('proc-cost').value = pr.cost_price || '';
+    document.getElementById('proc-moq').value = pr.moq || '';
+    document.getElementById('proc-lead').value = pr.lead_time || '';
+    document.getElementById('proc-notes').value = pr.notes || '';
+  } else {
+    ['proc-cost','proc-moq','proc-lead','proc-notes'].forEach(id => document.getElementById(id).value = '');
+  }
+  window._procProductId = productId;
+  document.getElementById('procurement-modal').classList.add('open');
+}
+
+async function saveProcurement() {
+  const data = {
+    product_id: window._procProductId,
+    supplier_id: document.getElementById('proc-supplier').value || null,
+    cost_price: document.getElementById('proc-cost').value || null,
+    moq: document.getElementById('proc-moq').value || null,
+    lead_time: document.getElementById('proc-lead').value.trim(),
+    notes: document.getElementById('proc-notes').value.trim(),
+    updated_at: new Date()
+  };
+  if (window._procurement) {
+    await supabase.from('product_procurement').update(data).eq('product_id', window._procProductId);
+  } else {
+    await supabase.from('product_procurement').insert(data);
+  }
+  closeModal('procurement-modal');
+  await renderTabs(window._procProductId);
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+}
+
+document.querySelectorAll('.modal-overlay').forEach(m => {
+  m.addEventListener('click', e => { if (e.target === m) m.classList.remove('open'); });
+});
+
+async function start() {
+  config = getConfig();
+  if (!config) {
+    document.getElementById('setup-screen').style.display = 'flex';
+    return;
+  }
+  initSupabase(config.url, config.key);
+  document.getElementById('login-screen').style.display = 'flex';
+}
+
+start();
+</script>
+</body>
+</html>
